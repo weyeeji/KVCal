@@ -332,6 +332,7 @@
       font-size: 12px;
       margin-top: 8px;
       line-height: 1.4;
+      overflow-wrap: anywhere;
     }
 
     .section {
@@ -762,9 +763,9 @@
             <input id="concurrency" type="number" min="1" max="100000" step="1" value="1" />
           </div>
           <div class="field">
-            <label for="overhead">运行时预留 / 卡 (GB)</label>
+            <label for="overhead">运行时预留 (GB)</label>
             <input id="overhead" type="number" min="0" max="128" step="0.5" value="8" />
-            <div class="hint">固定预留，用于 activations、CUDA graph、workspace 和通信 buffer。vLLM/SGLang 更接近按引擎配置预留，不按权重+KV 线性增长。</div>
+            <div class="hint">模型总量按固定预留计；硬件部署按每卡同值计入。用于 activations、CUDA graph、workspace 和通信 buffer。</div>
           </div>
         </div>
         <div class="hint">输出权重、KV Cache、运行时预留和总量。</div>
@@ -831,11 +832,12 @@
           <div class="field">
             <label for="kvShardMode">KV 分片</label>
             <select id="kvShardMode">
-              <option value="tp_cp">PP 层切分 + TP×CP 分片</option>
-              <option value="tp">PP 层切分 + TP 分片</option>
-              <option value="cp">PP 层切分 + CP 分片</option>
-              <option value="none">仅 PP 层切分，KV 不再分片</option>
+              <option value="tp_cp">TP×CP 分片</option>
+              <option value="tp">TP 分片</option>
+              <option value="cp">CP 分片</option>
+              <option value="none">仅 PP，不额外分片</option>
             </select>
+            <div class="hint">PP 默认按层切 KV；这里选择是否再按 TP/CP 分片。</div>
           </div>
         </div>
         <div class="two">
@@ -1024,7 +1026,7 @@
   </main>
 
   <footer class="footer">
-    数据来自 Hugging Face 配置和 safetensors index，并用公开论文/部署文档交叉核验。RTX PRO 6000D 与 H20 的中国大陆披露参数没有完整官方 datasheet，本页面把这些硬件值标为披露/行业来源；精确上机规划仍要结合实际推理引擎、TP/EP/PP、CUDA graph、paged attention block size、调度策略和监控实测。
+    数据来自 Hugging Face 配置和 safetensors index，并用公开论文/部署文档交叉核验。RTX PRO 6000 Blackwell 显存按本机 nvidia-smi 输出 97887MiB 换算；H20 采用公开披露/行业常见口径。精确上机规划仍要结合实际推理引擎、TP/EP/PP、CUDA graph、paged attention block size、调度策略和监控实测。
   </footer>
 
   <script>
@@ -1032,12 +1034,13 @@
 
     const HARDWARE = {
       pro6000d: {
-        name: "NVIDIA RTX PRO 6000D 中国大陆版",
-        vramGB: 84,
+        name: "NVIDIA RTX PRO 6000 Blackwell",
+        vramGB: 102.641958912,
+        vramLabel: "97887 MiB nvidia-smi（约 102.64 GB / 95.59 GiB）",
         bandwidthGBs: 1398,
         defaultLinkGBs: 64,
         transferLabel: "PCIe Gen5 x16 近似",
-        notes: "公开披露值不完全一致；这里采用 84GB GDDR7、约 1,398GB/s 的保守口径，默认无 NVLink。"
+        notes: "按本机 nvidia-smi：总显存 97887MiB，功耗上限 600W；带宽暂沿用 1,398GB/s 口径，默认无 NVLink，建议按实际卡型/驱动实测校准。"
       },
       h20: {
         name: "NVIDIA H20",
@@ -1583,9 +1586,10 @@
     function renderHardwareRows() {
       el("hardwareRows").innerHTML = Object.values(HARDWARE).map((h) => {
         const capBytes = h.vramGB * GB;
+        const vramLabel = h.vramLabel || `${h.vramGB} GB (${bytesToGB(capBytes).toFixed(2)} GB)`;
         return `<tr>
           <td>${h.name}</td>
-          <td class="num">${h.vramGB} GB (${bytesToGB(capBytes).toFixed(2)} GB)</td>
+          <td class="num">${vramLabel}</td>
           <td class="num">${fmtGBs(h.bandwidthGBs)}</td>
           <td class="num">${fmtGBs(h.defaultLinkGBs)}</td>
           <td>${h.notes}</td>
@@ -1784,7 +1788,7 @@
         [`Prefill 微批 KV`, fmtGB(prefillKvBytes), `${fmtInt(prefillBatch)} 个请求产生后发送给 D 池的 KV 量`],
         [`${hardware.name} KV 写入`, fmtMs(writeLowerMs), `仅按 HBM/GDDR 带宽 ${fmtGBs(hardware.bandwidthGBs)} 计算的物理下界`],
         ["H20 写入同量 KV", fmtMs(h20Write), "用于比较不同卡上的 KV materialization 下界"],
-        ["Pro6000D 写入同量 KV", fmtMs(proWrite), "用于比较不同卡上的 KV materialization 下界"],
+        ["Pro6000 写入同量 KV", fmtMs(proWrite), "用于比较不同卡上的 KV materialization 下界"],
         ["P->D KV 传输", fmtMs(transferLowerMs), `链路带宽 ${fmtGBs(linkGBs)}；不含调度、序列化、网络栈和反压`]
       ];
       if (model.kvKind === "minimax_msa") {

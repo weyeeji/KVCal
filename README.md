@@ -11,7 +11,7 @@
 - 模型数据必须基于 Hugging Face 配置页、`config.json`、`model.safetensors.index.json` 和对应论文/推理实现文档调研，不应凭空编参数。
 - README 需要记录每个模型的关键配置参数、attention 模式、KV Cache 计算方式、权重大小、可用/官方推荐的数据格式，以及对应来源。
 - KV Cache 计算公式要参考对应论文或主流推理实现文档，不能手写臆造。需要覆盖 MLA/latent KV、DeepSeek V4 CSA/HCA、MiniMax MSA/GQA 等不同 attention/KV 结构。
-- 支持硬件：中国大陆版 NVIDIA RTX PRO 6000D 和 NVIDIA H20；页面和 README 都要列出硬件参数，并明确公开披露数据的不确定性。
+- 支持硬件：NVIDIA RTX PRO 6000 Blackwell 和 NVIDIA H20；页面和 README 都要列出硬件参数，并明确公开披露数据的不确定性。
 - 计算部署显存构成：模型权重、KV Cache、固定运行时预留。上下文长度需要同时支持滑条、文本框和常用预设，并支持并发量输入。
 - 数据格式选择只能列出模型实际支持或官方/主流部署文档中出现过的格式；不能为了凑选项自行添加 FP16 等未确认格式。
 - 页面应拆成两个计算器：
@@ -27,7 +27,7 @@
 这是一个无依赖的静态网页，分成两个计算器：
 
 - 计算器一：模型总量。只选择模型、权重/KV 格式、上下文长度、并发和固定运行时预留，不选择硬件和并行方式；输出权重、KV Cache、运行时预留、总显存，并用饼图展示占比。
-- 计算器二：硬件部署。沿用计算器一的模型场景，再选择硬件数量、NVIDIA RTX PRO 6000D 中国大陆版 / NVIDIA H20、TP/PP/EP/CP/DP、KV 分片方式等；输出每张卡分到的权重、KV、每卡运行时预留、总占用，并用堆叠条展示是否超过可用显存，以及并行方案用卡是否超过选定硬件数量。
+- 计算器二：硬件部署。沿用计算器一的模型场景，再选择硬件数量、NVIDIA RTX PRO 6000 Blackwell / NVIDIA H20、TP/PP/EP/CP/DP、KV 分片方式等；输出每张卡分到的权重、KV、每卡运行时预留、总占用，并用堆叠条展示是否超过可用显存，以及并行方案用卡是否超过选定硬件数量。
 
 当前版本按电脑 Web 看板设计：左侧输入分成两个独立展开的计算器卡片；右侧顶部是指标卡和可视化，长表格和公式放在下方区域，并保留窄窗口下的单列阅读布局。
 
@@ -40,7 +40,7 @@
 - 硬件并行视角里的“专家权重 EP 可分片占比”和“非专家权重复制度”是工程估算参数。公开 config 不提供完整逐 tensor 权重归属，因此页面不把该部分伪装成绝对精确值。
 - 模型参数表增加了中文含义列；公式区域同时提供排版后的公式和纯文本公式，方便核对。
 - 数据可视化包括：模型总显存饼图、每卡显存堆叠条。
-- RTX PRO 6000D 与 H20 的中国大陆披露参数没有完整公开 NVIDIA datasheet；页面中硬件值采用公开披露/行业常见口径，并在备注中标出不确定性。
+- RTX PRO 6000 Blackwell 显存按本机 `nvidia-smi` 输出 `97887MiB` 换算；H20 采用公开披露/行业常见口径。页面在备注中标出不确定性。
 - TTFT/TPOT 没有做绝对预测。页面只输出 KV 写入、P->D KV 传输、MiniMax MSA attention FLOPs 这类可追溯下界。
 
 ## 计算公式
@@ -398,16 +398,14 @@ KV = C * T * 60 * 2 * 4 * 128 * kv_bytes
 
 | 硬件 | 显存 | 显存带宽 | 默认卡间链路 | 备注 |
 |---|---:|---:|---:|---|
-| NVIDIA RTX PRO 6000D 中国大陆版 | 84GB GDDR7 | 约 1,398GB/s | PCIe Gen5 x16 约 64GB/s | 公开披露值不完全一致；NVIDIA 未公开完整 6000D datasheet。页面采用保守带宽口径。 |
+| NVIDIA RTX PRO 6000 Blackwell | 97887MiB nvidia-smi（约 102.64GB 十进制 / 95.59GiB） | 约 1,398GB/s | PCIe Gen5 x16 约 64GB/s | 按本机 `nvidia-smi`：总显存 97887MiB，功耗上限 600W；带宽暂沿用原保守口径，建议按实际卡型/驱动实测校准。 |
 | NVIDIA H20 | 96GB HBM3 | 约 4.0TB/s | NVLink/NVSwitch 约 900GB/s | NVIDIA 开发者论坛上也能看到没有公开完整 H20 datasheet 的讨论；页面采用行业常见披露口径。 |
 
 参考来源：
 
 - [NVIDIA RTX PRO 6000 Blackwell Server Edition official page](https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/)
-- [Tom's Hardware: RTX PRO 6000D China market reporting](https://www.tomshardware.com/tech-industry/semiconductors/why-nobody-is-buying-nvidia-6000d-in-china)
 - [NVIDIA Developer Forum: H20 datasheet discussion](https://forums.developer.nvidia.com/t/do-we-have-manual-datasheet-for-nvidia-h20/303749)
 - [GetDeploying NVIDIA H20 summary](https://getdeploying.com/gpus/nvidia-h20)
-- [GetDeploying RTX PRO 6000D summary](https://getdeploying.com/gpus/nvidia-rtx-pro-6000d)
 
 ## 文件说明
 
